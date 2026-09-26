@@ -506,6 +506,8 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
             
             if request_data.stream:
                 async def stream_wrapper_passthrough():
+                    streaming_error = None
+                    client_disconnected = False
                     try:
                         async def make_retry_request():
                             return await http_client.request_with_retry(
@@ -524,9 +526,30 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                         ):
                             yield chunk
                     except GeneratorExit:
+                        client_disconnected = True
                         logger.debug("Client disconnected during streaming (passthrough)")
+                    except Exception as e:
+                        # Without this handler, an exception raised mid-stream (after
+                        # headers are already sent) propagates uncaught into Starlette's
+                        # BaseHTTPMiddleware, which raises a secondary
+                        # "Caught handled exception, but response already started"
+                        # RuntimeError that masks the real error and drops the
+                        # connection with no error frame sent to the client.
+                        streaming_error = e
+                        try:
+                            yield "data: [DONE]\n\n"
+                        except Exception:
+                            pass  # Client already disconnected
                     finally:
                         await http_client.close()
+                        if streaming_error:
+                            error_type = type(streaming_error).__name__
+                            error_msg = str(streaming_error) if str(streaming_error) else "(empty message)"
+                            logger.error(f"HTTP 500 - POST /v1/chat/completions (streaming, passthrough) - [{error_type}] {error_msg[:200]}")
+                        elif client_disconnected:
+                            logger.info("HTTP 200 - POST /v1/chat/completions (streaming, passthrough) - client disconnected")
+                        else:
+                            logger.info("HTTP 200 - POST /v1/chat/completions (streaming, passthrough) - completed")
                 
                 return StreamingResponse(
                     stream_wrapper_passthrough(),

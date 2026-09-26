@@ -369,7 +369,7 @@ Response:
         "max_checkpoints": 4,
         "min_tokens_per_checkpoint": 1024
       },
-      "additional_request_fields_schema": { ... }
+      "reasoning_efforts": ["low", "medium", "high", "xhigh", "max"]
     }
   ]
 }
@@ -382,7 +382,7 @@ Response:
 | `rate_multiplier` | Credit cost multiplier (e.g. 2.2x for Opus, 0.05x for Qwen) |
 | `supported_inputs` | `TEXT`, `IMAGE` |
 | `prompt_caching` | Whether prompt caching is available and its constraints |
-| `additional_request_fields_schema` | JSON Schema for extra fields like `thinking` and `effort` |
+| `reasoning_efforts` | Available effort levels for the model (only present on models that support it) |
 
 > **Note:** With a `ksk_*` key, models are fetched live from Kiro API. With `PROXY_API_KEY`, the cached/static model list is returned without metadata.
 
