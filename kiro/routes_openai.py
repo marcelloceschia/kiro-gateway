@@ -285,6 +285,10 @@ async def get_models(request: Request, bearer_token: str = Depends(verify_api_ke
             if response.status_code == 200:
                 data = response.json()
                 models = data.get("models", [])
+                # Keep usage accounting in sync with the limits advertised to clients.
+                # The resolver and streaming paths share this session cache.
+                if models:
+                    await session.model_cache.update(models)
                 openai_models = []
                 for m in models:
                     token_limits = m.get("tokenLimits", {})

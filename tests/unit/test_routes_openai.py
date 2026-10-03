@@ -366,6 +366,32 @@ class TestModelsEndpoint:
             assert model["object"] == "model", "Model object type should be 'model'"
             assert "owned_by" in model, "Model missing 'owned_by' field"
     
+    def test_passthrough_models_update_session_token_limits(self, test_client):
+        """Live metadata advertised to clients must also drive usage accounting."""
+        from kiro.routes_openai import _get_passthrough_session, _passthrough_sessions
+
+        key = "ksk_test_models_context_window"
+        response_data = {
+            "models": [{
+                "modelId": "claude-sonnet-4",
+                "tokenLimits": {"maxInputTokens": 1000000, "maxOutputTokens": 32000},
+            }]
+        }
+        _passthrough_sessions.clear()
+        try:
+            with patch("kiro.routes_openai.httpx.AsyncClient") as client_class:
+                client = client_class.return_value.__aenter__.return_value
+                client.post = AsyncMock(return_value=Mock(status_code=200, json=Mock(return_value=response_data)))
+                response = test_client.get("/v1/models", headers={"Authorization": f"Bearer {key}"})
+
+            assert response.status_code == 200
+            assert response.json()["data"][0]["context_window"] == 1000000
+            import asyncio
+            session = asyncio.run(_get_passthrough_session(key))
+            assert session.model_cache.get_max_input_tokens("claude-sonnet-4") == 1000000
+        finally:
+            _passthrough_sessions.clear()
+
     def test_models_owned_by_kiro(self, test_client, valid_proxy_api_key):
         """
         What it does: Verifies models are attributed to Kiro.
