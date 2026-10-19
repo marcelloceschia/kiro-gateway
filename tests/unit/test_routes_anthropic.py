@@ -282,7 +282,8 @@ class TestMessagesPassthroughStreamingErrorHandling:
         Goal: The new exception handling must be additive — it should never
         fire, log an error, or alter output for the happy path.
         """
-        print("Setup: Mocking stream_with_first_token_retry_anthropic with a clean stream...")
+        # Keep the real retry wrapper so invalid route arguments cannot be hidden.
+        print("Setup: Mocking only the upstream stream parser with a clean stream...")
         
         async def mock_stream_ok(*args, **kwargs):
             yield 'event: content_block_delta\ndata: {"delta": {"text": "Hi"}}\n\n'
@@ -299,7 +300,7 @@ class TestMessagesPassthroughStreamingErrorHandling:
         
         print("Action: POST /v1/messages with ksk_ passthrough key, stream=True...")
         with patch('kiro.routes_anthropic.KiroHttpClient', return_value=mock_http_client_instance):
-            with patch('kiro.routes_anthropic.stream_with_first_token_retry_anthropic', mock_stream_ok):
+            with patch('kiro.streaming_anthropic.stream_kiro_to_anthropic', mock_stream_ok):
                 response = test_client.post(
                     "/v1/messages",
                     headers={"x-api-key": "ksk_test_passthrough_key"},
@@ -316,7 +317,9 @@ class TestMessagesPassthroughStreamingErrorHandling:
         assert response.status_code == 200
         assert '"Hi"' in response.text
         assert "event: error" not in response.text
-        print("✅ Successful stream unaffected by the new error handling")
+        mock_http_client_instance.request_with_retry.assert_awaited_once()
+        mock_http_client_instance.close.assert_awaited_once()
+        print("✅ Successful stream uses the real retry wrapper and closes resources")
     
     def test_generator_exit_still_handled_separately_from_generic_exception(
         self, test_client

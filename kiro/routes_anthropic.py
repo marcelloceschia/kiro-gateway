@@ -385,7 +385,6 @@ async def messages(
                         
                         async for chunk in stream_with_first_token_retry_anthropic(
                             make_request=make_retry_request,
-                            client=http_client.client,
                             model=request_data.model,
                             model_cache=model_cache,
                             auth_manager=auth_manager,
