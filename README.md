@@ -836,7 +836,7 @@ curl http://localhost:8000/v1/messages \
   }'
 ```
 
-> **Note:** In Anthropic API, `system` is a separate field, not a message.
+> **Note:** In Anthropic API, `system` is a separate field. For client compatibility, the gateway also accepts text-only `system` messages inside `messages` on both `/v1/messages` and `/v1/messages/count_tokens`. Their content is appended to any existing top-level system prompt in encounter order, preserving text-block metadata. At least one user or assistant message is still required.
 
 </details>
 
